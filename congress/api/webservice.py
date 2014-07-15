@@ -21,6 +21,7 @@ import uuid
 import webob
 import webob.dec
 
+from congress.common import policy
 from congress.openstack.common import log as logging
 
 
@@ -265,12 +266,36 @@ class CollectionHandler(AbstractApiHandler):
         Returns:
             A webob response object.
         """
+        context = request.environ['congress.context']
+        target = {
+            'project_id': context.project_id,
+            'user_id': context.user_id
+        }
+        # NOTE(arosen): today congress only enforces API policy on which
+        # API calls we allow tenants to make with their given roles.
+        action_type = self._get_action_type(request.method)
+        action = "%s_%s" % (action_type, self.model.model_name)
+        policy.enforce(context, action, target)
+
         #TODO(pballand): validation
         if request.method == 'GET' and self.allow_list:
             return self.list_members(request)
         elif request.method == 'POST' and self.allow_create:
             return self.create_member(request)
         return NOT_SUPPORTED_RESPONSE
+
+    def _get_action_type(self, method):
+        if method == 'GET':
+            return 'get'
+        elif method == 'POST':
+            return 'create'
+        elif method == 'DELETE':
+            return 'delete'
+        elif method == 'PUT':
+            return 'update'
+        else:
+            # should never get here but just in case ;)
+            raise TypeError("Invalid HTTP Method")
 
     def list_members(self, request):
         if not hasattr(self.model, 'get_items'):

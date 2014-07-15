@@ -21,9 +21,9 @@ import socket
 
 import os.path
 from oslo.config import cfg
+from paste import deploy
 import sys
 
-from congress.api import application
 from congress.common import config
 from congress.common import eventlet_server
 import congress.dse.d6cage
@@ -54,11 +54,9 @@ class ServerWrapper(object):
 
 
 def create_api_server(conf, name, host, port, workers):
-    api_resource_mgr = application.ResourceManager()
-    application.initialize_resources(api_resource_mgr)
-    api_webapp = application.ApiApplication(api_resource_mgr)
+    app = deploy.loadapp('config:%s' % conf, name=name)
     congress_api_server = eventlet_server.Server(
-        api_webapp, host=host, port=port,
+        app, host=host, port=port,
         keepalive=cfg.CONF.tcp_keepalive,
         keepidle=cfg.CONF.tcp_keepidle)
 
@@ -149,11 +147,10 @@ def main():
     # API resource runtime encapsulation:
     #   event loop -> wsgi server -> webapp -> resource manager
 
-    #TODO(arosen): find api-paste.conf for keystonemiddleware
-    paste_config = None
+    paste_config = config.find_paste_config()
     servers = []
     servers.append(create_api_server(paste_config,
-                                     "congress-api-server",
+                                     "congress",
                                      cfg.CONF.bind_host,
                                      cfg.CONF.bind_port,
                                      cfg.CONF.api_workers))
